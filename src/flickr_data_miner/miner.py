@@ -4,14 +4,16 @@ Created on Apr 16, 2010
 
 @author: kling
 '''
-import threading, os, sys, urllib2
+import threading, os, sys, urllib2, cmd
+from datetime import datetime
+from Queue import Queue
+
 import settings
 from storage import Repository
 from net import FileGetter
-from util import ProgressBar
-from optparse import OptionParser, OptionGroup
+from util import ProgressBar, get_class
 import lxml.html
-from Queue import Queue
+
 
 
 def get_urls(tags=None, pages=1):
@@ -50,7 +52,6 @@ def fetch_data(dir, tags=None, print_progress=False):
     
     def consumer(q, rep, total_files, print_progress):
         if print_progress:
-            print "Fetching %i images..." % total_files
             bar = ProgressBar(total_files)
                 
         counter = 0
@@ -77,15 +78,140 @@ def fetch_data(dir, tags=None, print_progress=False):
     
 
 def parse_options():
-    pass
+    
+    usage = """usage: %prog -f [-d DIR] [-p PAGES] tag1 [tag2 ...]    fetch images for tag1, tag2,...
+   or: %prog -a REPOSITORY                             enter analyzer mode for repository"""
+
+    parser = OptionParser(usage=usage)
+    
+    parser.add_option('-f', '--fetch', action='store_true', dest='fetch'
+                      , help='mine images corresponding to the tags')
+    
+    parser.add_option('-a', '--analyze', action='store_true', dest='analyze', 
+                      help='analyze the data in specified repository')
+    
+    group = OptionGroup(parser, 'Fetch options', 'These options are valid in combination with the fetch option:')
+    group.add_option('-p','--pages', action='store', type='int', dest='pages',
+                      default=1,
+                      help='number of pages to get the images from [default: %default]')
+    now = datetime.now()
+    group.add_option('-d', '--dir', action='store', type='string', dest='directory',
+                      default=os.path.join(os.path.expanduser('~'), 'flickr-analysis', now.strftime('%Y-%m-%d_%H-%M')), metavar='DIR',
+                      help='the destination directory [default: %default]')
+    
+    parser.add_option_group(group)
+    
+    
+    (options, args) = parser.parse_args()
+    
+    
+    if not options.fetch and not options.analyze:
+        parser.error("See usage...")
+    
+    
+    if options.fetch and not args:
+        parser.error("At least one tag is required")
+    elif options.analyze and not args:
+        parser.error("A path to a valid repository is reqired")
+        
+    
+    return (options, args)
 
 def main():
-    pass
+    options, args = parse_options()
+    
+    if options.fetch:
+        directory = os.path.abspath(options.directory)
+        if os.path.exists(directory) and os.listdir(directory):
+            sys.exit("The target directoy must be empty.")
+            
+        print "Determine number of images to fetch..."
+        urls = get_urls(args, options.pages)
+        number_of_images = [(tag, len(urls[tag])) for tag in urls]
+        total = reduce(lambda x,y: x+y, [t[1] for t in number_of_images])
+        print "Fetching %i images (%s) into %s..." % \
+        (total, ', '.join(["%s: %i" % (tag, number) for tag, number in number_of_images]), directory)
+        fetch_data(os.path.abspath(options.directory), urls, True)
+        print "\nAll images fetched."
+        
+    elif options.analyze:
+        directory = os.path.abspath(args[0])
+        if not os.path.exists(directory):
+            sys.exit("The target directoy must exist.")
+        rep = Repository(directory)
+        
+        analyser = [get_class(m)(rep) for m in settings.ANALYZERS]
+        
+        _cmd = AnalyzerCmd(analyser)
+        _cmd.cmdloop("here we go...")
         
 
+class AnalyzerCmd(cmd.Cmd, object):
+    def __init__(self, analyzers, completekey='Tab'):
+        self.analyzers = dict()
+        for a in analyzers:
+            self.analyzers[a.NAME] = a
+        self.context = None
+        cmd.Cmd.__init__(self, completekey)
+        self.prompt = '> '
+        
+    def do_exit(self, line):
+        """ Exits the programm."""
+        return True
+    
+    def precmd(self, line):
+        if line in self.analyzers:
+            line = 'a ' + line
+        return line
+    
+    def default(self, line):
+        if self.context:
+            self.context.onecmd(line)
+        else:
+            print "**ERROR** no such command"
+    
+    def do_a(self, line):
+        """ Usage: a <analyzer>. Load analyzer <analyzer>."""
+        
+        if line in self.analyzers:
+            self.context = self.analyzers[line]
+            if self.context.needs_init():
+                init = ''
+                while init.lower() != 'no' and init.lower() != 'yes':
+                    init = raw_input("The analyzer %s is not yet initialized\nInitialize now? (yes/no)")
+                if init.lower() == 'yes':
+                    self.context.initialize()
+                    self.prompt = ('(a:%s)> ' % self.context.NAME)
+                else:
+                    self.context = None
+            else:
+                self.prompt = ('(a:%s)> ' % self.context.NAME)
+        else:
+            print "**ERROR** Analyzer %s is not available" % line
+            
+    def do_alist(self, line):
+        """ List all available analyzer. """
+        
+        print '\nAvailable analyzers:\n'
+        for a in self.analyzers:
+            print " - %s\t\t %s" %(a, self.analyzers[a].__doc__.splitlines()[0])
+        print ''
+            
+    def do_help(self, line):
+        """ Prints the help. """
+        
+        if self.context:
+            self.context.do_help(line)
+        else:
+            super(AnalyzerCmd, self).do_help(line)
+            
+    def do_return(self, line):
+        """ Return from analyzer. """
+        
+        if self.context:
+            self.context = None
+            self.prompt = '> '
 
 if __name__ == '__main__':
-    print "Determine nubmer of images to fetch..."
-    urls = get_urls(('sexy',), 1)
-    fetch_data('/Users/kling/test2', urls, True)
-    print "\n All images fetched."
+    from optparse import OptionParser, OptionGroup
+    main()
