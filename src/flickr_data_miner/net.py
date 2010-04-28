@@ -28,4 +28,4 @@ class FileGetter(threading.Thread):
             f.close()
             self.has_result = True
         except IOError:
-            print "Could not open document: %s" % self.url
+            print "Could not open URL: %s" % self.page_url

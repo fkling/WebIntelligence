@@ -4,15 +4,16 @@ Created on Apr 16, 2010
 
 @author: kling
 '''
-import threading, os, sys, urllib2, cmd
+import threading, os, sys, urllib2, lxml.html
 from datetime import datetime
 from Queue import Queue
+
 
 import settings
 from storage import Repository
 from net import FileGetter
 from util import ProgressBar, get_class
-import lxml.html
+from analyzer import AnalyzerCmd
 
 
 
@@ -20,6 +21,7 @@ def get_urls(tags=None, pages=1):
     if not tags:
         return
     
+    ids = set()
     result = dict()
     for tag in tags:
         l = list()
@@ -29,9 +31,11 @@ def get_urls(tags=None, pages=1):
             for link in dom.cssselect(settings.THUMBNAIL_LINK_SELECTOR):
                 # get and fetch page_url
                 page_link = settings.BASE_URL + link.get('href')
-                name = page_link.split('/')[-2]
-                image_link = link.find('img').get('src')
-                l.append((name, page_link, image_link))
+                id = page_link.split('/')[-2]
+                if id not in ids:
+                    ids.add(id)
+                    image_link = link.find('img').get('src')
+                    l.append((id, page_link, image_link))
         result[tag] = l
     return result
                 
@@ -42,6 +46,7 @@ def fetch_data(dir, tags=None, print_progress=False):
         return
     
     repository = Repository(dir, new=True)
+    repository.set_last()
     
     def producer(q, tags):
         for tag in tags:
@@ -52,7 +57,7 @@ def fetch_data(dir, tags=None, print_progress=False):
     
     def consumer(q, rep, total_files, print_progress):
         if print_progress:
-            bar = ProgressBar(total_files)
+            bar = ProgressBar(total_files, width=50)
                 
         counter = 0
         while counter < total_files:
@@ -61,13 +66,17 @@ def fetch_data(dir, tags=None, print_progress=False):
             if thread.has_result:
                 rep.add_site(thread.tag, thread.id, thread.page)
                 rep.add_image(thread.tag, thread.id, thread.image)
+            else:
+                total_files -= 1;
+                bar = ProgressBar(total_files, width=50)
+                bar.add(counter)
             counter += 1;
             bar.add()
             if print_progress:
                 sys.stdout.write("%i%% %r fetched %i of %i \r" %( counter*100/total_files, bar, counter, total_files))
                 sys.stdout.flush()
             
-    q = Queue(20)
+    q = Queue(50)
     prod_thread = threading.Thread(target=producer, args=(q, tags))
     total = reduce(lambda x,y: x+y, [len(tags[tag]) for tag in tags])
     cons_thread = threading.Thread(target=consumer, args=(q, repository, total, print_progress))
@@ -95,7 +104,7 @@ def parse_options():
                       default=1,
                       help='number of pages to get the images from [default: %default]')
     now = datetime.now()
-    group.add_option('-d', '--dir', action='store', type='string', dest='directory',
+    group.add_option('-d', '--dir', dest='directory',
                       default=os.path.join(os.path.expanduser('~'), 'flickr-analysis', now.strftime('%Y-%m-%d_%H-%M')), metavar='DIR',
                       help='the destination directory [default: %default]')
     
@@ -111,8 +120,6 @@ def parse_options():
     
     if options.fetch and not args:
         parser.error("At least one tag is required")
-    elif options.analyze and not args:
-        parser.error("A path to a valid repository is reqired")
         
     
     return (options, args)
@@ -135,82 +142,19 @@ def main():
         print "\nAll images fetched."
         
     elif options.analyze:
-        directory = os.path.abspath(args[0])
+        if not args:
+            path = Repository.get_last()
+        else:
+            path = args[0]
+        directory = os.path.abspath(path)
         if not os.path.exists(directory):
             sys.exit("The target directoy must exist.")
         rep = Repository(directory)
         
         analyser = [get_class(m)(rep) for m in settings.ANALYZERS]
         
-        _cmd = AnalyzerCmd(analyser)
+        _cmd = AnalyzerCmd(rep, analyser)
         _cmd.cmdloop("here we go...")
-        
-
-class AnalyzerCmd(cmd.Cmd, object):
-    def __init__(self, analyzers, completekey='Tab'):
-        self.analyzers = dict()
-        for a in analyzers:
-            self.analyzers[a.NAME] = a
-        self.context = None
-        cmd.Cmd.__init__(self, completekey)
-        self.prompt = '> '
-        
-    def do_exit(self, line):
-        """ Exits the programm."""
-        return True
-    
-    def precmd(self, line):
-        if line in self.analyzers:
-            line = 'a ' + line
-        return line
-    
-    def default(self, line):
-        if self.context:
-            self.context.onecmd(line)
-        else:
-            print "**ERROR** no such command"
-    
-    def do_a(self, line):
-        """ Usage: a <analyzer>. Load analyzer <analyzer>."""
-        
-        if line in self.analyzers:
-            self.context = self.analyzers[line]
-            if self.context.needs_init():
-                init = ''
-                while init.lower() != 'no' and init.lower() != 'yes':
-                    init = raw_input("The analyzer %s is not yet initialized\nInitialize now? (yes/no)")
-                if init.lower() == 'yes':
-                    self.context.initialize()
-                    self.prompt = ('(a:%s)> ' % self.context.NAME)
-                else:
-                    self.context = None
-            else:
-                self.prompt = ('(a:%s)> ' % self.context.NAME)
-        else:
-            print "**ERROR** Analyzer %s is not available" % line
-            
-    def do_alist(self, line):
-        """ List all available analyzer. """
-        
-        print '\nAvailable analyzers:\n'
-        for a in self.analyzers:
-            print " - %s\t\t %s" %(a, self.analyzers[a].__doc__.splitlines()[0])
-        print ''
-            
-    def do_help(self, line):
-        """ Prints the help. """
-        
-        if self.context:
-            self.context.do_help(line)
-        else:
-            super(AnalyzerCmd, self).do_help(line)
-            
-    def do_return(self, line):
-        """ Return from analyzer. """
-        
-        if self.context:
-            self.context = None
-            self.prompt = '> '
 
 if __name__ == '__main__':
     from optparse import OptionParser, OptionGroup
