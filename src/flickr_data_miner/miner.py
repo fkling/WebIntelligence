@@ -31,7 +31,7 @@ def get_urls(tags=None, pages=1):
             for link in dom.cssselect(settings.THUMBNAIL_LINK_SELECTOR):
                 # get and fetch page_url
                 page_link = settings.BASE_URL + link.get('href')
-                id = page_link.split('/')[-2]
+                id = long(page_link.split('/')[-2])
                 if id not in ids:
                     ids.add(id)
                     image_link = link.find('img').get('src')
@@ -50,8 +50,8 @@ def fetch_data(dir, tags=None, print_progress=False, threads=50):
     
     def producer(q, tags):
         for tag in tags:
-            for name, page_url, image_url in tags[tag]:
-                thread = FileGetter(name, tag, page_url, image_url)
+            for id, page_url, image_url in tags[tag]:
+                thread = FileGetter(id, tag, page_url, image_url)
                 thread.start()
                 q.put(thread, True)
     

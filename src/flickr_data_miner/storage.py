@@ -52,7 +52,7 @@ class Repository(object):
         tag_dir = os.path.join(self.path, tag)
         if not os.path.isdir(tag_dir):
             os.mkdir(tag_dir)
-        file = open(os.path.join(tag_dir, id + '.jpg'), 'wb')
+        file = open(os.path.join(tag_dir, str(id) + '.jpg'), 'wb')
         file.write(data)
         file.close()
         
@@ -68,7 +68,7 @@ class Repository(object):
         tag_dir = os.path.join(self.path, tag)
         if not os.path.isdir(tag_dir):
             os.mkdir(tag_dir)
-        file = open(os.path.join(tag_dir, id + '.html'), 'w')
+        file = open(os.path.join(tag_dir, str(id) + '.html'), 'w')
         file.write(data)
         file.close()
         
