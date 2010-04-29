@@ -66,10 +66,10 @@ def fetch_data(dir, tags=None, print_progress=False, threads=50):
             if thread.has_result:
                 rep.add_site(thread.tag, thread.id, thread.page)
                 rep.add_image(thread.tag, thread.id, thread.image)
-                counter += 1;
+                counter += 1
                 bar.add()
             else:
-                total_files -= 1;
+                total_files -= 1
                 bar = ProgressBar(total_files, width=50)
                 bar.add(counter)
 

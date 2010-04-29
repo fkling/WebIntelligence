@@ -168,9 +168,30 @@ class TagAnalyzer(Analyzer):
         tags = self.repository.db_conn.execute('SELECT name FROM tag ORDER BY name').fetchall()
         print ', '.join(tag[0] for tag in tags)
         
+    def do_list_most_used(self, line):
+        """ List tags that are most used. """
+        tags = self.repository.db_conn.execute('SELECT name, count FROM tag WHERE count = (SELECT MAX(count) from tag) ORDER BY name').fetchall()
+        
+        for name, count in tags:
+            print '-', name, count
+            
+    def do_list_less_used(self, line):
+        """ List tags that are most used. """
+        tags = self.repository.db_conn.execute('SELECT name, count FROM tag WHERE count = (SELECT MIN(count) from tag) ORDER BY name').fetchall()
+        
+        for name, count in tags:
+            print '-', name, count
+            
+    def do_count_less_used(self, line):
+        """ List tags that are most used. """
+        min = self.repository.db_conn.execute('SELECT MIN(count) FROM tag').fetchone()
+        number = self.repository.db_conn.execute('SELECT COUNT(name) FROM tag WHERE count = ?', min).fetchone()[0]
+        
+        print 'Number of unique tags used only %i time(s): %i' % (min[0], number)
+        
 
 class AnalyzerCmd(cmd.Cmd, object):
-    def __init__(self, repository, analyzers,completekey='Tab'):
+    def __init__(self, repository, analyzers, completekey='Tab'):
         self._a = analyzers
         self.analyzers = dict((a.NAME, a) for a in analyzers)
         self.context = None
