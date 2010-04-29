@@ -78,7 +78,7 @@ class Repository(object):
             OUPUT:
                 A tuple of format (id, tag, content) where id is the id of
                 the page, tag is corresponding tag of the page and content
-                is the actuall HTML data.
+                is the actual HTML data.
 
         """
         
@@ -95,7 +95,7 @@ class Repository(object):
         
     @property
     def total_images(self):
-        """ Total amount of images (and therefor HTML pages too). """
+        """ Total amount of images (and therefore HTML pages too). """
         
         current = os.getcwd()
         os.chdir(self.path)

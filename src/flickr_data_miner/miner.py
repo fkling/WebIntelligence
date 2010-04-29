@@ -41,7 +41,7 @@ def get_urls(tags=None, pages=1):
                 
 
 
-def fetch_data(dir, tags=None, print_progress=False):
+def fetch_data(dir, tags=None, print_progress=False, threads=50):
     if not tags:
         return
     
@@ -66,17 +66,18 @@ def fetch_data(dir, tags=None, print_progress=False):
             if thread.has_result:
                 rep.add_site(thread.tag, thread.id, thread.page)
                 rep.add_image(thread.tag, thread.id, thread.image)
+                counter += 1;
+                bar.add()
             else:
                 total_files -= 1;
                 bar = ProgressBar(total_files, width=50)
                 bar.add(counter)
-            counter += 1;
-            bar.add()
+
             if print_progress:
                 sys.stdout.write("%i%% %r fetched %i of %i \r" %( counter*100/total_files, bar, counter, total_files))
                 sys.stdout.flush()
             
-    q = Queue(50)
+    q = Queue(threads)
     prod_thread = threading.Thread(target=producer, args=(q, tags))
     total = reduce(lambda x,y: x+y, [len(tags[tag]) for tag in tags])
     cons_thread = threading.Thread(target=consumer, args=(q, repository, total, print_progress))

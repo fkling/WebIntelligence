@@ -29,7 +29,7 @@ class Analyzer(cmd.Cmd, object):
         if not self.CREATE_TABLES or not self.TABLES:
             raise NotImplementedError('A CREATE_TABLES attribute must be implemented')
         for create in self.CREATE_TABLES:
-            self.repository.db_conn.execute(create, autocommit=False)
+            self.repository.db_conn.execute(create)
     
     def parse_file(self, id, tag, data):
         pass
@@ -48,7 +48,7 @@ class Analyzer(cmd.Cmd, object):
             
     def remove(self):
         for table in self.TABLES:
-            self.repository.db_conn.execute('DROP TABLE ' + table, autocommit=False) 
+            self.repository.db_conn.execute('DROP TABLE ' + table) 
             
     def recreate(self):
         self.remove()
@@ -188,7 +188,7 @@ class AnalyzerCmd(cmd.Cmd, object):
                 total = self.rep.total_images
                 for a in not_init:
                     a.create_tables()
-                    self.rep.start_transaction()
+                    self.rep.begin_transaction()
                 for i, (id, tag, content) in enumerate(self.rep.get_sites(), start=1):
                     for a in not_init:
                         a.parse_file(id, tag, content)

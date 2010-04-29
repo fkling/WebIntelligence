@@ -4,8 +4,6 @@ Created on Apr 26, 2010
 @author: kling
 '''
 
-from math import floor
-
 class ProgressBar(object):
     """ This class returns a string that can be used to simulate a progress bar.
        
@@ -59,7 +57,7 @@ class ProgressBar(object):
         s = (int(round(self.progress))-1) * "="
         if self.progress > 0:
             s += '>'
-        return '[' + s.ljust(self.width) + ']'
+        return ''.join(('[',s.ljust(self.width),']'))
         
 def get_class( kls ):
     parts = kls.split('.')
