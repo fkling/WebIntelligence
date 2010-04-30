@@ -4,8 +4,9 @@ Created on Apr 17, 2010
 @author: kling
 '''
 
-import os, sqlite3
+import os, sqlite3, itertools
 from datetime import date
+from contextlib import closing
 
 class Repository(object):
     """ This class represents a collection of images and HTML pages. """
@@ -27,9 +28,8 @@ class Repository(object):
     def set_last(self):
         """ Set the current repository as last accessed repository. """
         
-        f = open(self.LAST_FILE, 'w')
-        f.write(self.path)
-        f.close()
+        with open(self.LAST_FILE, 'w') as f:
+            f.write(self.path)
     
     @classmethod
     def get_last(cls):
@@ -52,9 +52,8 @@ class Repository(object):
         tag_dir = os.path.join(self.path, tag)
         if not os.path.isdir(tag_dir):
             os.mkdir(tag_dir)
-        file = open(os.path.join(tag_dir, str(id) + '.jpg'), 'wb')
-        file.write(data)
-        file.close()
+        with open(os.path.join(tag_dir, str(id) + '.jpg'), 'wb') as file:
+            file.write(data)
         
     def add_site(self, tag, id, data):
         """ Add a HTML page to the repository.
@@ -82,29 +81,23 @@ class Repository(object):
 
         """
         
-        current = os.getcwd()
-        os.chdir(self.path)
-        for tag in [d for d in os.listdir(self.path) if os.path.isdir(d)]:
-            for site in [f for f in os.listdir(tag) if f.endswith('.html')]:
-                id = site[:-5]
-                f = open(os.path.join(tag, site))
-                content = f.read()
-                f.close()
+        l = lambda x: x.endswith('.html')
+        for root, dirs, files in itertools.ifilterfalse(lambda x: x[1], os.walk(self.path)):
+            tag = root.split('/')[-1]
+            for file in itertools.ifilter(l,  files):
+                id = file[:-5]
+                with open(os.path.join(root, file)) as f:
+                    content = f.read()
+
                 yield (long(id), tag, content)
-        os.chdir(current)
         
     @property
     def total_images(self):
         """ Total amount of images (and therefore HTML pages too). """
         
-        current = os.getcwd()
-        os.chdir(self.path)
         if not self._total_images:
             self._total_images = (reduce(lambda x,y: x+y, 
-                                         [len(os.listdir(os.path.join(self.path, tag)))/2 
-                                          for tag in os.listdir(self.path) 
-                                          if os.path.isdir(os.path.join(self.path, tag))]))
-        os.chdir(current)
+                                         [len(files)/2 for root, dir, files in itertools.ifilterfalse(lambda x: x[1], os.walk(self.path))]))
         return self._total_images
     
     def begin_transaction(self):

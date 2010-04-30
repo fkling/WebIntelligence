@@ -5,6 +5,7 @@ Created on Apr 26, 2010
 '''
 
 import threading, urllib2
+from contextlib import closing
 
 class FileGetter(threading.Thread):
     def __init__(self, id, tag, page, image):
@@ -20,12 +21,12 @@ class FileGetter(threading.Thread):
  
     def run(self):
         try:
-            f = urllib2.urlopen(self.page_url)
-            self.page = f.read()
-            f.close()
-            f = urllib2.urlopen(self.image_url)
-            self.image = f.read()
-            f.close()
+            with closing(urllib2.urlopen(self.page_url)) as page:
+                self.page = page.read()
+
+            with closing(urllib2.urlopen(self.image_url)) as image:
+                self.image = image.read()
+
             self.has_result = True
         except IOError:
             print "Could not open URL: %s" % self.page_url
