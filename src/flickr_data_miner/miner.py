@@ -7,6 +7,8 @@ Created on Apr 16, 2010
 import threading, os, sys, urllib2, lxml.html
 from datetime import datetime
 from Queue import Queue
+from lxml import etree
+from lxml.cssselect import CSSSelector
 
 
 import settings
@@ -18,6 +20,18 @@ from analyzer import AnalyzerCmd
 
 
 def get_urls(tags=None, pages=1):
+    """ Fetches the URLs of the thumbnails and HTML pages of flickr images.
+    
+        INPUT:
+            - tags: A sequence of tags to search for.
+            - pages: The number of pages to examine per tag
+            
+        OUTPUT:
+            A dictionary that contains the tags as keys and a for each tag a list
+            of tuples of the form (image-id, page_url, thumbnail_url)
+            
+    """
+    
     if not tags:
         return
     
@@ -131,7 +145,7 @@ def main():
     if options.fetch:
         directory = os.path.abspath(options.directory)
         if os.path.exists(directory) and os.listdir(directory):
-            sys.exit("The target directoy must be empty.")
+            sys.exit("The target directory must be empty.")
             
         print "Determine number of images to fetch..."
         urls = get_urls(args, options.pages)
