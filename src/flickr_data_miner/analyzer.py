@@ -9,30 +9,83 @@ from lxml import etree
 from lxml.cssselect import CSSSelector
 
 class Analyzer(cmd.Cmd, object):
-    '''
-    No documentation available.
-    '''
+    """ This is the base class for analyzer classes.
+        
+        For convinience, it subclasses the Cmd class to provide an easy way to
+        implement the analyzer methods.
+        
+        A new analyzer can be created as follows:
+        
+            1. Set the class attribute NAME to the name of the analyzer. The name
+               will be shown in the commandline help and in the prompt.
+               EXAMPLE: 
+                   NAME = 'tags'
+               
+            2. Specify a tuple of SQL CREATE TABLE statements in the class attribute
+               CREATE_TABLES. These commands will be executed if the analyzer is
+               initialzied.
+               EXAMPLE:
+                   CREATE_TABLES = ('CREATE TABLE tag (id integer, name text)',)
+                   
+            3. List the names of the DB tables the analyzer creates in the class
+               attribute TABLES. This is used to check whether the table(s) already
+               exist.
+               EXAMPLE:
+                   TABLES = ('tags',)
+                   
+            4. Override the "parse_file" method in order to extract data from
+               the HTML pages upon initialization.
+                   
+            5. For every function the analyzer should provide, define a instance
+               method "do_functionname". This method is then accesible via the 
+               command line with "functionname". The docstring of this method 
+               will be printed in the help of the command line.
+               EXAMPLE:
+                   do_count_tags(self, line):
+                
+               For more information read the documentation about the Cmd class:
+               http://docs.python.org/library/cmd.html
+               
+               IMPORTANT: These methods should only print information, never
+               return values different from False. Otherwise the command line
+               will exit.
+               
+            6. Add the full path to the class to "settings.py". Make sure that
+               the analyzer comes after all other analyzer it is dependend on.
+    """
+    
     CREATE_TABLES = tuple()
     TABLES = tuple()
     NAME = 'Unnamed analyzer'
     
     def __init__(self, repository):
-        '''
-        Constructor
-        '''
         self.init()
         self.repository = repository
         cmd.Cmd.__init__(self)
         
     def init(self):
-        pass
-    
+        """ Can be implemented to set default values.
+            This is more convinient than to override __init__.
+        """
+              
+        pass   
     
     def create_tables(self):
+        """ Executes the CREATE TABLE statements."""
+        
         for create in self.CREATE_TABLES:
             self.repository.db_conn.execute(create)
     
     def parse_file(self, id, tag, data):
+        """ Should be implemented by the analyzer to extract data from the
+            HTML pages.
+            
+            INPUT:
+                - id: The image id.
+                - tag: The tag, the image was fetched for.
+                - data: The HTML page.    
+        """
+        
         pass
     
     def initialize(self):
@@ -49,6 +102,8 @@ class Analyzer(cmd.Cmd, object):
 
             
     def remove(self):
+        """ Delete the DB tables. """
+        
         for table in self.TABLES:
             self.repository.db_conn.execute('DROP TABLE ' + table) 
             
@@ -57,6 +112,8 @@ class Analyzer(cmd.Cmd, object):
         self.initialize()
         
     def needs_init(self):
+        """ Checks whether the DB tables already exist. """
+        
         query = "SELECT name FROM sqlite_master WHERE type='table' AND name IN (%s)" % ", ".join("%r" % s for s in self.TABLES)
         result = self.repository.db_conn.execute(query).fetchall()
         return len(result) != len(self.TABLES)
@@ -92,7 +149,7 @@ class BasicImageAnalyzer(Analyzer):
     
     def init(self):
         self._count = 0
-        self.sel = CSSSelector("#thetags > div > a.Plain")
+        self.sel = CSSSelector("#Photo .Widget a[property='dc:date']")
     
     def parse_file(self, id, tag, data):
         doc = etree.HTML(data)
@@ -132,6 +189,10 @@ class BasicImageAnalyzer(Analyzer):
             
 
 class AnalyzerCmd(cmd.Cmd, object):
+    """ This class provides the interface to the analyzers. It works as a 
+        command line interface.
+    """
+    
     def __init__(self, repository, analyzers, completekey='Tab'):
         self._a = analyzers
         self.analyzers = dict((a.NAME, a) for a in analyzers)
@@ -141,6 +202,10 @@ class AnalyzerCmd(cmd.Cmd, object):
         self.rep = repository
         
     def preloop(self):
+        """ At start, check if any analyzer is not yet initialzed. These can be
+            much faster than initialzing each analyzer on its own.
+        """
+        
         not_init = [a for a in self._a if a.needs_init()]
         if not_init:
             init = ''
@@ -158,16 +223,12 @@ class AnalyzerCmd(cmd.Cmd, object):
                         sys.stdout.flush()
                 print '\nDone.'
                 self.rep.commit()
-            
-        
-    def do_exit(self, line):
-        """ Exits the programm."""
-        
-        return True
     
     def precmd(self, line):
+        """ If the command is the name of an anlyzer, select this one. """
+        
         if line in self.analyzers:
-            line = 'sel ' + line
+            line = 'select ' + line
         return line
     
     def default(self, line):
@@ -178,6 +239,12 @@ class AnalyzerCmd(cmd.Cmd, object):
             self.analyzers[parts[0]].onecmd(' '.join(parts[1:]))
         else:
             print "**ERROR** no such command"
+    
+    
+    def do_exit(self, line):
+        """ Exits the programm."""
+        
+        return True
     
     def do_select(self, line):
         """ Usage: select <analyzer>. Load analyzer <analyzer>.

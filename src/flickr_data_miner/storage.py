@@ -5,16 +5,20 @@ Created on Apr 17, 2010
 '''
 
 import os, sqlite3, itertools
-from datetime import date
-from contextlib import closing
 
 class Repository(object):
-    """ This class represents a collection of images and HTML pages. """
+    """ This class represents a collection of images and HTML pages. 
+    
+        INPUT:
+            - dir: Directoy to load.
+            - new: Indicate whether a new repository should be created.
+    """
     
     
     LAST_FILE = os.path.expanduser("~/.flickr_analyzer_last_rep")
     
     def __init__(self, dir, new=False):
+        
         self.path = os.path.abspath(dir)
         db_path = os.path.join(self.path, 'data.sqlite')
         if new:
@@ -82,6 +86,7 @@ class Repository(object):
         """
         
         l = lambda x: x.endswith('.html')
+        # traverse through the tag folders
         for root, dirs, files in itertools.ifilterfalse(lambda x: x[1], os.walk(self.path)):
             tag = root.split('/')[-1]
             for file in itertools.ifilter(l,  files):

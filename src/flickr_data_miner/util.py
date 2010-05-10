@@ -60,6 +60,8 @@ class ProgressBar(object):
         return ''.join(('[',s.ljust(self.width),']'))
         
 def get_class( kls ):
+    """ Loads a class given by a string. """
+    
     parts = kls.split('.')
     module = ".".join(parts[:-1])
     m = __import__( module )

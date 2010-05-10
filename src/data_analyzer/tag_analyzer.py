@@ -131,6 +131,8 @@ class TagAnalyzer(Analyzer):
             print '- %s %i' % el
     
     def do_ranked_list(self, list):
+        """ Prints ranked list. """
+        
         self.create_temporary_tables()
         tags = self.repository.db_conn.execute('SELECT name, count FROM tag_count ORDER BY count DESC')
         

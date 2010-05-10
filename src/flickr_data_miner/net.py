@@ -8,6 +8,8 @@ import threading, urllib2
 from contextlib import closing
 
 class FileGetter(threading.Thread):
+    """ This class fetches the images and HTML pages. """
+    
     def __init__(self, id, tag, page, image):
         self.page_url = page
         self.image_url = image

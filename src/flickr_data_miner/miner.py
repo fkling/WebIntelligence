@@ -33,7 +33,7 @@ def get_urls(tags=None, pages=1):
     """
     
     if not tags:
-        return
+        return dict()
     
     ids = set()
     result = dict()
@@ -55,42 +55,63 @@ def get_urls(tags=None, pages=1):
                 
 
 
-def fetch_data(dir, tags=None, print_progress=False, threads=50):
+def fetch_data(dir, tags=None, print_progress=False, threads=80):
+    """ Fetches the content of the URLs provided via tags into the directory
+        specified by dir.
+        
+        INPUT:
+            - dir: The directory to store the data
+            - tags: A dictioniary of tags, each containing a list of tuples.
+                    See 'get_urls'.
+            - print_progress: Show a progress bar
+            - threads: The maximum amount of threads taht are started to fetch
+                       the data.
+        OUTPUT:
+            None
+    """
+    
     if not tags:
         return
     
     repository = Repository(dir, new=True)
     repository.set_last()
     
-    def producer(q, tags):
+    # Function to be executed by the producer thread. Creates a new thread
+    # for each URL and puts it into a queue
+    def producer(queue, tags):
         for tag in tags:
             for id, page_url, image_url in tags[tag]:
                 thread = FileGetter(id, tag, page_url, image_url)
                 thread.start()
-                q.put(thread, True)
+                queue.put(thread, True)
     
-    def consumer(q, rep, total_files, print_progress):
+    # Function to be executed by the consumer thread. Gets every thread in the
+    # queue, joins it to terminate it properly and stores the data in a repository.
+    def consumer(queue, rep, total_files, print_progress):
         if print_progress:
             bar = ProgressBar(total_files, width=50)
                 
         counter = 0
-        while counter < total_files:
-            thread = q.get(True)
+        while counter < total_files: # run until all images are fetched
+            thread = queue.get(True)
             thread.join()
             if thread.has_result:
                 rep.add_site(thread.tag, thread.id, thread.page)
                 rep.add_image(thread.tag, thread.id, thread.image)
                 counter += 1
-                bar.add()
+                if print_progress:
+                    bar.add()
             else:
                 total_files -= 1
-                bar = ProgressBar(total_files, width=50)
-                bar.add(counter)
+                if print_progress:
+                    bar = ProgressBar(total_files, width=50)
+                    bar.add(counter)
 
             if print_progress:
                 sys.stdout.write("%i%% %r fetched %i of %i \r" %( counter*100/total_files, bar, counter, total_files))
                 sys.stdout.flush()
-            
+    
+    
     q = Queue(threads)
     prod_thread = threading.Thread(target=producer, args=(q, tags))
     total = reduce(lambda x,y: x+y, [len(tags[tag]) for tag in tags])
@@ -102,6 +123,7 @@ def fetch_data(dir, tags=None, print_progress=False, threads=50):
     
 
 def parse_options():
+    """ Encapsulate option parsing. Only used if this file is run as script. """
     
     usage = """usage: %prog -f [-d DIR] [-p PAGES] tag1 [tag2 ...]    fetch images for tag1, tag2,...
    or: %prog -a REPOSITORY                             enter analyzer mode for repository"""
@@ -140,25 +162,32 @@ def parse_options():
     return (options, args)
 
 def main():
+    """ Method to run if executed as script. """
+    
     options, args = parse_options()
     
-    if options.fetch:
+    if options.fetch: # get URLs and data
         directory = os.path.abspath(options.directory)
+        
         if os.path.exists(directory) and os.listdir(directory):
             sys.exit("The target directory must be empty.")
             
         print "Determine number of images to fetch..."
+        
         urls = get_urls(args, options.pages)
         number_of_images = [(tag, len(urls[tag])) for tag in urls]
         total = reduce(lambda x,y: x+y, [t[1] for t in number_of_images])
-        print "Fetching %i images (%s) into %s..." % \
-        (total, ', '.join(["%s: %i" % (tag, number) for tag, number in number_of_images]), directory)
+        
+        print "Fetching %i images (%s) into %s..." % (total, 
+                                                      ', '.join(["%s: %i" % (tag, number) for tag, number in number_of_images]), 
+                                                      directory)
         fetch_data(os.path.abspath(options.directory), urls, True)
+        
         print "\nAll images fetched."
         
-    elif options.analyze:
+    elif options.analyze: # go to analyzer mode
         if not args:
-            path = Repository.get_last()
+            path = Repository.get_last() # open last fetched data
         else:
             path = args[0]
         directory = os.path.abspath(path)
@@ -166,6 +195,7 @@ def main():
             sys.exit("The target directoy must exist.")
         rep = Repository(directory)
         
+        # load analyzer
         analyser = [get_class(m)(rep) for m in settings.ANALYZERS]
         
         _cmd = AnalyzerCmd(rep, analyser)
