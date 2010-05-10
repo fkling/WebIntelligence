@@ -11,19 +11,19 @@ from lxml.cssselect import CSSSelector
 class Analyzer(cmd.Cmd, object):
     """ This is the base class for analyzer classes.
         
-        For convinience, it subclasses the Cmd class to provide an easy way to
+        For convenience, it subclasses the Cmd class to provide an easy way to
         implement the analyzer methods.
         
         A new analyzer can be created as follows:
         
             1. Set the class attribute NAME to the name of the analyzer. The name
-               will be shown in the commandline help and in the prompt.
+               will be shown in the command line help and in the prompt.
                EXAMPLE: 
                    NAME = 'tags'
                
             2. Specify a tuple of SQL CREATE TABLE statements in the class attribute
                CREATE_TABLES. These commands will be executed if the analyzer is
-               initialzied.
+               initialized.
                EXAMPLE:
                    CREATE_TABLES = ('CREATE TABLE tag (id integer, name text)',)
                    
@@ -37,7 +37,7 @@ class Analyzer(cmd.Cmd, object):
                the HTML pages upon initialization.
                    
             5. For every function the analyzer should provide, define a instance
-               method "do_functionname". This method is then accesible via the 
+               method "do_functionname". This method is then accessible via the 
                command line with "functionname". The docstring of this method 
                will be printed in the help of the command line.
                EXAMPLE:
@@ -51,7 +51,7 @@ class Analyzer(cmd.Cmd, object):
                will exit.
                
             6. Add the full path to the class to "settings.py". Make sure that
-               the analyzer comes after all other analyzer it is dependend on.
+               the analyzer comes after all other analyzer it is depending on.
     """
     
     CREATE_TABLES = tuple()

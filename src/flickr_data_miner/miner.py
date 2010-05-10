@@ -55,16 +55,16 @@ def get_urls(tags=None, pages=1):
                 
 
 
-def fetch_data(dir, tags=None, print_progress=False, threads=80):
+def fetch_data(dir, tags=None, print_progress=False, threads=50):
     """ Fetches the content of the URLs provided via tags into the directory
         specified by dir.
         
         INPUT:
             - dir: The directory to store the data
-            - tags: A dictioniary of tags, each containing a list of tuples.
+            - tags: A dictionary of tags, each containing a list of tuples.
                     See 'get_urls'.
             - print_progress: Show a progress bar
-            - threads: The maximum amount of threads taht are started to fetch
+            - threads: The maximum amount of threads that are started to fetch
                        the data.
         OUTPUT:
             None
@@ -79,11 +79,14 @@ def fetch_data(dir, tags=None, print_progress=False, threads=80):
     # Function to be executed by the producer thread. Creates a new thread
     # for each URL and puts it into a queue
     def producer(queue, tags):
-        for tag in tags:
-            for id, page_url, image_url in tags[tag]:
-                thread = FileGetter(id, tag, page_url, image_url)
-                thread.start()
-                queue.put(thread, True)
+        try:
+            for tag in tags:
+                for id, page_url, image_url in tags[tag]:
+                    thread = FileGetter(id, tag, page_url, image_url)
+                    thread.start()
+                    queue.put(thread, True)
+        except KeyboardInterrupt:
+            raise
     
     # Function to be executed by the consumer thread. Gets every thread in the
     # queue, joins it to terminate it properly and stores the data in a repository.
@@ -92,24 +95,27 @@ def fetch_data(dir, tags=None, print_progress=False, threads=80):
             bar = ProgressBar(total_files, width=50)
                 
         counter = 0
-        while counter < total_files: # run until all images are fetched
-            thread = queue.get(True)
-            thread.join()
-            if thread.has_result:
-                rep.add_site(thread.tag, thread.id, thread.page)
-                rep.add_image(thread.tag, thread.id, thread.image)
-                counter += 1
+        try:
+            while counter < total_files: # run until all images are fetched
+                thread = queue.get(True)
+                thread.join()
+                if thread.has_result:
+                    rep.add_site(thread.tag, thread.id, thread.page)
+                    rep.add_image(thread.tag, thread.id, thread.image)
+                    counter += 1
+                    if print_progress:
+                        bar.add()
+                else:
+                    total_files -= 1
+                    if print_progress:
+                        bar = ProgressBar(total_files, width=50)
+                        bar.add(counter)
+    
                 if print_progress:
-                    bar.add()
-            else:
-                total_files -= 1
-                if print_progress:
-                    bar = ProgressBar(total_files, width=50)
-                    bar.add(counter)
-
-            if print_progress:
-                sys.stdout.write("%i%% %r fetched %i of %i \r" %( counter*100/total_files, bar, counter, total_files))
-                sys.stdout.flush()
+                    sys.stdout.write("%i%% %r fetched %i of %i \r" %( counter*100/total_files, bar, counter, total_files))
+                    sys.stdout.flush()
+        except KeyboardInterrupt:
+            raise
     
     
     q = Queue(threads)
