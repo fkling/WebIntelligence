@@ -10,7 +10,7 @@ class Repository(object):
     """ This class represents a collection of images and HTML pages. 
     
         INPUT:
-            - dir: Directoy to load.
+            - dir: Directory to load.
             - new: Indicate whether a new repository should be created.
     """
     

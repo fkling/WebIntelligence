@@ -225,7 +225,7 @@ class AnalyzerCmd(cmd.Cmd, object):
                 self.rep.commit()
     
     def precmd(self, line):
-        """ If the command is the name of an anlyzer, select this one. """
+        """ If the command is the name of an analyzer, select this one. """
         
         if line in self.analyzers:
             line = 'select ' + line
