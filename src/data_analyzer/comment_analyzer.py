@@ -1,11 +1,10 @@
 '''
 Created on May 9, 2010
 
-@author: tong
 '''
 
-
-import lxml
+from lxml import etree
+from lxml.cssselect import CSSSelector
 
 from flickr_data_miner.analyzer import  Analyzer
 
@@ -22,17 +21,21 @@ class CommentAnalyzer(Analyzer):
     def init(self):
         self._count=0
         self._temp_initialized = False
+        self._cs = CSSSelector('#DiscussPhoto .comment-block')
+        self._commenters = CSSSelector('h4 > a')
+        self._comments = CSSSelector('.comment-content > p')
+        self._dates = CSSSelector('.comment-content > p > small')
         
     def parse_file(self, id, tag, data):
-        doc = lxml.html.document_fromstring(data)
-        comments = doc.cssselect('#DiscussPhoto .comment-block')
+        doc = etree.HTML(data)
+        comments = self._cs(doc)
         values = list()
-        for c in comments:
+        for i, c in zip(xrange(10),comments):
             try:
-                commenter=c.cssselect('h4 > a')[0].text
-                comment=' '.join(c.cssselect('.comment-content > p')[0].itertext())
+                commenter=self._commenters(c)[0].text
+                comment=' '.join(self._comments(c)[0].itertext())
 #                  print 'c:',  comment
-                date=' '.join(c.cssselect('.comment-content > p > small')[0].itertext())
+                date=' '.join(self._dates(c)[0].itertext())
             except IndexError:
                 commenter=""
                 comment=""

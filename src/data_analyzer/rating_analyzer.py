@@ -1,7 +1,6 @@
 '''
 Created on May 9, 2010
 
-@author: agaraj
 '''
 
 import string

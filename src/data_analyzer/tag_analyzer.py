@@ -1,7 +1,8 @@
 '''
 Created on May 9, 2010
 
-@author: kling
+This already includes code for the second project.
+
 '''
 
 import itertools

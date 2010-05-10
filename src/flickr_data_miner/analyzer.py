@@ -1,7 +1,6 @@
 '''
 Created on Apr 19, 2010
 
-@author: kling
 '''
 import cmd, sys, datetime, lxml
 

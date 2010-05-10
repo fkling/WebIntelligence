@@ -2,7 +2,6 @@
 '''
 Created on Apr 16, 2010
 
-@author: kling
 '''
 import threading, os, sys, urllib2, lxml.html
 from datetime import datetime

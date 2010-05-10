@@ -1,7 +1,6 @@
 '''
 Created on Apr 26, 2010
 
-@author: kling
 '''
 
 class ProgressBar(object):

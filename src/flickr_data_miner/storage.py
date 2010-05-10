@@ -1,7 +1,6 @@
 '''
 Created on Apr 17, 2010
 
-@author: kling
 '''
 
 import os, sqlite3, itertools
