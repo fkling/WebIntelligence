@@ -6,11 +6,15 @@ This already includes code for the second project.
 '''
 
 import itertools
+import numpy as _
 
 from lxml import etree
 from lxml.cssselect import CSSSelector
 
 from flickr_data_miner.analyzer import  Analyzer
+from flickr_data_miner.lexicon import wordlist
+from flickr_data_miner.util import OrderedSet
+import matplotlib.pyplot as plt
 
 class TagAnalyzer(Analyzer):
     """ Provides various information about tags. """
@@ -21,6 +25,9 @@ class TagAnalyzer(Analyzer):
                     "CREATE TABLE image_tag (image_id integer REFERENCES images(id) ON DELETE CASCADE, tag_id integer REFERENCES tag(id) ON DELETE CASCADE, PRIMARY KEY (image_id, tag_id))"
                     )
     NAME = 'tags'
+    
+    TAGS = 1
+    COMMENTS =2
     
     def init(self):
         self._tags = dict()
@@ -131,30 +138,77 @@ class TagAnalyzer(Analyzer):
         for el in tags:
             print '- %s %i' % el
     
-    def do_ranked_list(self, list):
-        """ Prints ranked list. """
+    def do_plot_ranked_list(self, list):
+        """ Plots the ranked list of all tags. """
         
         self.create_temporary_tables()
         tags = self.repository.db_conn.execute('SELECT name, count FROM tag_count ORDER BY count DESC')
         
         print '\nRanked list:\n'
         
+        prev_count = 0
+        prev_rank = 1
         
-        def filter(t, last=[0]):
-            name, count = t
-            if count != last[0]:
-                last[0] = count
-                return True
-            return False
-        
-        
-        for i, (name, count) in enumerate(itertools.ifilter(filter, tags), start=1):
-            print '%i. %i' % (i, count)
+        x = []
+        y = []
+        for rank, (name, count) in enumerate(tags, start=1):
+            if count != prev_count:
+                prev_rank = rank
+                prev_count = count
+                x.append(prev_rank)
+                y.append(count)
+                
+            print '%i. %s %i' % (prev_rank, name, count)
         print ''
         
+        
+        plt.plot(x,y,'r-')
+        plt.ylabel('frequencies of tags')
+        plt.xlabel('rank of tags')
+        plt.grid(True)
+        #plt.vlines((2,), 0, data[-1])
+        #plt.xlim(0,100)
+        #plt.xticks(range(0,100,10))
+        plt.show()
+        
+    def do_pca(self, line):
+        
+        i = 2500
+        self.create_temporary_tables()
+        
+        # create a kind of ordered set
+        lexicon = dict(itertools.izip(wordlist(i),itertools.count()))
+        documents = {}
+        
+        # create document vectors
+        for image_id, tag_name in self.repository.db_conn.execute('Select * from named_tag_list'):
+            v = documents.setdefault(image_id, [0]*i)
+            if tag_name in lexicon:
+                v[lexicon.get(tag_name)] = 1
+        # compute the mean
+        m = _.mean(documents.values(), axis = 0)
+        
+        x_s = [_.array(x) - m for x in documents.values()]
+        S = _.cov(_.matrix(x_s).transpose())
+        w,v = _.linalg.eig(S)
+        
+        # go through some conversion hazzel to sort the vectors by the values   
+        # generate a list of columns  
+        va = v.transpose().tolist() #vectors are now lists
+        
+        def cmp(v, d={}):
+            return d.setdefault(tuple(v), w[va.index(v)])
+            
+        v = sorted(va, key=cmp, reverse=True) # sort by eigenvalues
+        
+        v_2 = _.matrix(v[0:2]).astype(_.float64)   # was view(dtype=_.float32) before 
+        u_i = [v_2*_.matrix(x).transpose() for x in x_s]
+        plt.scatter([x[0] for x in u_i], [x[1] for x in u_i], len(u_i)^2,marker=(5,1))
+        plt.grid(True)
+        plt.show()
         
     def create_temporary_tables(self):
         if not self._temp_initialized:
             self.repository.db_conn.execute("CREATE TEMP TABLE IF NOT EXISTS tags_per_image AS SELECT image_id, COUNT(tag_id) as count FROM image_tag GROUP BY image_id")
             self.repository.db_conn.execute("CREATE TEMP TABLE IF NOT EXISTS tag_count AS SELECT tag_id, name, COUNT(image_id) as count FROM image_tag LEFT JOIN tag on tag_id = id GROUP BY tag_id, name")
- 
+            self.repository.db_conn.execute("CREATE TEMP TABLE IF NOT EXISTS named_tag_list AS SELECT image_id, name FROM image_tag LEFT JOIN tag on tag_id = id")
