@@ -5,8 +5,9 @@ This already includes code for the second project.
 
 '''
 
-import itertools
-import numpy as _
+import itertools, re
+import numpy as np
+from time import time
 
 from lxml import etree
 from lxml.cssselect import CSSSelector
@@ -33,6 +34,8 @@ class TagAnalyzer(Analyzer):
         self._tags = dict()
         self._temp_initialized = False
         self.sel = CSSSelector("#thetags > div > a.Plain")
+        
+        self.pca = {}
         
     def parse_file(self, id, tag, data):
         doc = etree.HTML(data)
@@ -170,40 +173,123 @@ class TagAnalyzer(Analyzer):
         #plt.xlim(0,100)
         #plt.xticks(range(0,100,10))
         plt.show()
+     
+    def compute_pca(self, num_words=2500, with_comments=False):
         
-    def do_pca(self, line):
+        u_i = self.pca.get((num_words, with_comments))
+        if u_i:
+            return (self.pca.get('ordered_images'),  u_i)
         
-        i = 2500
         self.create_temporary_tables()
         
-        # create a kind of ordered set
-        lexicon = dict(itertools.izip(wordlist(i),itertools.count()))
-        documents = {}
+        documents = dict()
         
-        # create document vectors
-        for image_id, tag_name in self.repository.db_conn.execute('Select * from named_tag_list'):
-            v = documents.setdefault(image_id, [0]*i)
-            if tag_name in lexicon:
-                v[lexicon.get(tag_name)] = 1
-        # compute the mean
-        m = _.mean(documents.values(), axis = 0)
+        ordered_images = self.repository.db_conn.execute('Select DISTINCT image_id, tag from named_tag_list').fetchall()
+        self.pca['ordered_images'] = ordered_images
         
-        x_s = [_.array(x) - m for x in documents.values()]
-        S = _.cov(_.matrix(x_s).transpose())
-        w,v = _.linalg.eig(S)
-        
-        # go through some conversion hazzel to sort the vectors by the values   
-        # generate a list of columns  
-        va = v.transpose().tolist() #vectors are now lists
-        
-        def cmp(v, d={}):
-            return d.setdefault(tuple(v), w[va.index(v)])
+        # having another method to build the document vectors if comments are
+        # _not_ included really really really increases the speed!
+        # ( 3 sec vs 16 min )
+        if with_comments:
             
-        v = sorted(va, key=cmp, reverse=True) # sort by eigenvalues
+            lexicon = wordlist(num_words)
+            
+            # define a function to get all the words from tags (and comments)
+            def get_word_list(images):
+                s = set               # try to microoptimize
+                c = itertools.chain          
+                e = self.repository.db_conn.execute
+                for image_id, _ in images:
+                    # 1. get flat tag list
+                    words = s(c(*e('SELECT name FROM named_tag_list WHERE image_id = ?',(image_id, )).fetchall()))
+                
+                    for (comment,) in e('SELECT content FROM image_comment WHERE image_id = ?', (image_id, )):
+                        # get the substring up to 'Posted' and split it by all non word characters
+                        words.update(re.split("[^\w']+", comment.lower()[:comment.rfind('Posted')]))
+                    
+                    yield image_id, words
         
-        v_2 = _.matrix(v[0:2]).astype(_.float64)   # was view(dtype=_.float32) before 
-        u_i = [v_2*_.matrix(x).transpose() for x in x_s]
-        plt.scatter([x[0] for x in u_i], [x[1] for x in u_i], len(u_i)^2,marker=(5,1))
+        
+            
+            # create document vectors
+            for image_id, words in get_word_list(ordered_images):
+                documents[image_id] = [int(x in words) for x in lexicon]
+        
+        else:
+            # create a kind of ordered set:
+            lexicon = dict(itertools.izip(wordlist(num_words),itertools.count()))
+            
+            # create document vectors
+            for image_id, tag_name, _ in self.repository.db_conn.execute('Select * from named_tag_list'):
+                v = documents.setdefault(image_id, [0]*num_words)
+                if tag_name in lexicon:
+                    v[lexicon.get(tag_name)] = 1
+ 
+        
+        m = np.mean(documents.values(), axis = 0)                          # 1. compute the mean          
+        x_s = [np.array(documents.get(x[0])) - m for x in ordered_images]  # 2. substract the mean
+        S = np.cov(np.matrix(x_s).transpose())                             # 3. compute the covariance matrix
+        w,V = np.linalg.eig(S)                                             # 4. compute the eigenvalues,-vectors
+
+        # go through some conversion hassel to sort the vectors by the values   
+        # generate a list of columns  
+        Va = V.transpose().tolist() #vectors are now lists
+        
+        def cmp(v_i, d={}): # define sort function, d simulates static variable
+            return d.setdefault(tuple(v_i), w[Va.index(v_i)])
+               
+        V = sorted(Va, key=cmp, reverse=True)                              # 5. sort by eigenvalues
+           
+        V2 = np.matrix(V[0:2]).astype(np.float64)  # eigenvectors contain complex values -> transorm to reals
+        
+        u = [V2*np.matrix(x).transpose() for x in x_s]                      # 6. compute u_is
+        
+        self.pca[(num_words, with_comments)] = u
+        
+        return (ordered_images, u)
+     
+    def do_pca(self, line):
+        
+        num_words = raw_input('How many words from the dictionary (default: 2500) ? ')
+        try:
+            num_words = int(num_words)
+        except:
+            num_words = 2500
+        
+        with_comments = raw_input('With comments (much slower)? (yes/NO) ')
+        with_comments = with_comments and with_comments.lower() != 'no'
+        tags_to_plot = raw_input('Which tags to plot (default: all) ? ')
+        
+        tags = self.repository.db_conn.execute('SELECT DISTINCT tag FROM images ORDER BY tag').fetchall()
+        tags = list(itertools.chain(*tags)) # make a flat list
+
+        now = time()
+        # image documents is of form
+        # [((image_id, tag), u_i), ...]
+        # i.e. image_id with corresponding tag and document vector
+        image_documents = zip(*self.compute_pca(num_words, with_comments))
+        print 'Time elapsed for computation: %f' % (time()-now)
+        
+        if tags_to_plot: # only keep element that
+            tags_to_plot = tags_to_plot.split()
+            image_documents = itertools.ifilter(lambda x: x[0][1] in tags_to_plot, image_documents)
+            
+        cmap= ('#000000', '#6600FF', '#FF9933', '#0033FF', '#00FFFF', '#FFFF33', '#006600', '#666666', '#666600', '#FF00CC')
+        
+        
+        # plots is of form
+        # plots = {'tagname': (x_coords_list, y_coords_list, color),...}   
+        plots = dict()     
+        for (_, tag), doc in image_documents:
+            p = plots.setdefault(tag, ([], [], cmap[tags.index(tag) % len(tags)]))
+            p[0].append(doc[0])
+            p[1].append(doc[1])
+        
+        # to differentiate the tags per color
+        for tag, (x, y, color) in plots.iteritems():
+            plt.scatter(x,y, c=color, s=20, marker='o')
+            
+        plt.legend(plots.keys(), scatterpoints=1, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
         plt.grid(True)
         plt.show()
         
@@ -211,4 +297,4 @@ class TagAnalyzer(Analyzer):
         if not self._temp_initialized:
             self.repository.db_conn.execute("CREATE TEMP TABLE IF NOT EXISTS tags_per_image AS SELECT image_id, COUNT(tag_id) as count FROM image_tag GROUP BY image_id")
             self.repository.db_conn.execute("CREATE TEMP TABLE IF NOT EXISTS tag_count AS SELECT tag_id, name, COUNT(image_id) as count FROM image_tag LEFT JOIN tag on tag_id = id GROUP BY tag_id, name")
-            self.repository.db_conn.execute("CREATE TEMP TABLE IF NOT EXISTS named_tag_list AS SELECT image_id, name FROM image_tag LEFT JOIN tag on tag_id = id")
+            self.repository.db_conn.execute("CREATE TEMP TABLE IF NOT EXISTS named_tag_list AS SELECT image_id, name, tag FROM image_tag LEFT JOIN tag ON tag_id = tag.id LEFT JOIN images on image_id = images.id")
