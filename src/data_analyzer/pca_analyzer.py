@@ -48,33 +48,28 @@ class PCAAnalyzer(Analyzer):
         """
         
         TF = None
-        
-        if(line.strip() == 'list'):
-            if not self.tdm:
-                print 'No TDMs computed yet.'
-                return
-            else:
-                print '\nSelect a TDM:\n'
-                selected = False
-                while not selected:
-                    print 'Index'.center(15), '#Words'.center(15), 'Comments'.center(15)
-                    for i, (num_words, comments, _) in enumerate(self.tdm):
-                        print str(i).center(15), str(num_words).center(15), \
-                                '{0}'.format('Yes' if comments else 'NO').center(15)
+        if self.tdm:
+            print '\nSelect a TDM or create a new one:\n'
+            selected = False
+            while not selected:
+                print 'Index'.center(15), '#Words'.center(15), 'Comments'.center(15)
+                for i, (num_words, comments, _) in enumerate(self.tdm):
+                    print str(i).center(15), str(num_words).center(15), \
+                            '{0}'.format('Yes' if comments else 'NO').center(15)
+                            
+                print '\n-1: New'
                                 
-                    print '\n-1: New'
-                                    
-                    option = raw_input('Select: ')                 
-                    try:
-                        option = int(option)
-                        if option == -1:
-                            selected = True
-                            break
-                        elif 0 <= option <= len(self.tdm):
-                            selected = True
-                            num_words, with_comments, TF = self.tdm[option]
-                    except:
-                        pass 
+                option = raw_input('Select: ')                 
+                try:
+                    option = int(option)
+                    if option == -1:
+                        selected = True
+                        break
+                    elif 0 <= option <= len(self.tdm):
+                        selected = True
+                        num_words, with_comments, TF = self.tdm[option]
+                except:
+                    pass 
         
         if TF is None: # build new matrix if none selected
             num_words = raw_input('How many words from the lexicon (default: 2500) ? ')
@@ -129,7 +124,7 @@ class PCAAnalyzer(Analyzer):
                 for image_id, comment in self.repository.db_conn.execute('SELECT image_id, content FROM image_comment'):
                     # get the substring up to 'Posted' and split it by all non word characters
                     builder.add_document_terms(image_id, re.split("[^\w']+", comment.lower()[:comment.rfind('Posted')]))
-        
+                    
             self.tdm.append((num_words, with_comments, builder.getTF()))  
                                 
         M = builder.build_matrix(localw=localw, globalw=globalw, matrix=TF)
