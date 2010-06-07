@@ -4,7 +4,7 @@ Created on Jun 2, 2010
 @author: kling
 '''
 
-import os, urllib2, itertools
+import os, urllib2
 from lxml import etree
 
 WORDLIST_URL = 'http://www.insightin.com/esl/%d.php'
@@ -15,6 +15,17 @@ WORDLIST = 'wordlist.txt'
 STOPLIST = 'stoplist.txt'
 
 def wordlist(amount, remove_stop_words=True):
+    """ Gets the most used words in the English language.
+    
+        INPUT:
+            - amount: Number of words to fetch (max: 6000)
+            - remove_stop_words: Don't return stop words (default: True)
+        
+        OUTPUT:
+            A list of words.
+    """
+    
+    amount = amount % 6001;
     fetch_data = True
     words = list()   
     if not os.path.exists(PATH):
@@ -70,4 +81,4 @@ def wordlist(amount, remove_stop_words=True):
     return words[:amount]
                 
 if __name__ == '__main__':
-    print len(wordlist(2000))
+    print len(wordlist(100))

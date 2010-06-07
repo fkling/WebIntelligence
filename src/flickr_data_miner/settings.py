@@ -13,4 +13,5 @@ ANALYZERS = (
 "data_analyzer.tag_analyzer.TagAnalyzer",
 "data_analyzer.comment_analyzer.CommentAnalyzer",
 "data_analyzer.rating_analyzer.RatingAnalyzer",
+"data_analyzer.pca_analyzer.PCAAnalyzer",
 )
