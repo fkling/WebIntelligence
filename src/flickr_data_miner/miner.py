@@ -204,7 +204,10 @@ def main():
         analyser = [get_class(m)(rep) for m in settings.ANALYZERS]
         
         _cmd = AnalyzerCmd(rep, analyser)
-        _cmd.cmdloop("here we go...")
+        try:
+            _cmd.cmdloop("here we go...")
+        except KeyboardInterrupt:
+            print "uh uh"
 
 if __name__ == '__main__':
     from optparse import OptionParser, OptionGroup

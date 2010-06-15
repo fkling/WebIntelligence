@@ -119,7 +119,7 @@ class PCAAnalyzer(Analyzer):
                 builder.add_document_term(image_id, tag_name)
                     
             if with_comments:
-                # just traversing the table is much as getting all comments and tags 
+                # just traversing the table is much faster as getting all comments and tags 
                 # for an image beforehand (~ 7 times faster)
                 for image_id, comment in self.repository.db_conn.execute('SELECT image_id, content FROM image_comment'):
                     # get the substring up to 'Posted' and split it by all non word characters
@@ -137,7 +137,7 @@ class PCAAnalyzer(Analyzer):
         """ Plots the chosen term document matrix."""
         
         if not self.pca:
-            print "Create a term document matrix with 'build_tdm' first."
+            print "Create a term document matrix with 'build' first."
             return
         
         print "\nSelect one of the matricies to plot:\n"

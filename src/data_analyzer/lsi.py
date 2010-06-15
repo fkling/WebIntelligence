@@ -1,7 +1,6 @@
 '''
 Created on Jun 6, 2010
 
-@author: kling
 '''
 
 import numpy as np
@@ -129,17 +128,17 @@ class TDMBuilder(object):
         return 1
     
     def global_normal(self, i, matrix):
-        sum = 0.
+        sum = 1.
         for j in xrange(self.documents_len):
             sum += matrix[i,j]**2
         return math.sqrt(1/sum)
     
     def global_gfldf(self, i, matrix):
         r = matrix[i]
-        return float(r.sum())/r.astype(np.bool).sum()
+        return float(r.sum())/1+r.astype(np.bool).sum()
     
     def global_ldf(self, i, matrix):
-        return 1 + math.log(float(self.documents_len)/matrix[i].astype(np.bool).sum(), 2)
+        return math.log(float(self.documents_len)/1+matrix[i].astype(np.bool).sum(), 2)
     
     def global_entropy(self, i, matrix):
         gf = float(matrix[i].astype(np.bool).sum())
@@ -165,7 +164,7 @@ def compute_pca(M, dim=2):
     """
     
     m = np.mean(M, axis=1)            # 1. compute the mean          
-    Xs = M - m                        # 2. substract the mean
+    Xs = M - m                        # 2. subtract the mean
     S = np.cov(M)                     # 3. compute the covariance matrix
     w,V = np.linalg.eig(S)            # 4. compute the eigenvalues,-vectors
 
