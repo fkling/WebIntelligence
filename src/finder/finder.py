@@ -8,7 +8,7 @@ import os, sys
 from optparse import OptionParser
 
 from fetcher import WAFetcher
-from resolver import TEResolver
+from resolver import TEResolver, TEContentResolver
  
     
 
@@ -42,7 +42,7 @@ def get_weight_for(name, fetcher=None):
         fetcher = WAFetcher()  
     return fetcher.get_weight(name)
 
-def parse_options():
+def parse_options(choices, default):
     parser = OptionParser(usage="usage: python %prog [options] image")
     parser.add_option("-p", "--max_pages", dest="max_pages", type="int", default=1,
                       help="examin MAX_PAGES result pages (default: 1)")
@@ -51,6 +51,9 @@ def parse_options():
     parser.add_option("-f", "--fetch_weight", type="int", default=0, dest="fetch",
                       help="get weight for the first N terms (0 = no fetch, default: 0)",
                       metavar="N")
+    parser.add_option("-m", "--mode", type="choice", default=default, dest="mode",
+                      choices=choices, 
+                      help="defines with method to use for resolving the name [filename, content] (default: filename)")
     
 
     options, args = parser.parse_args()
@@ -68,10 +71,15 @@ def parse_options():
 
 
 if __name__ == "__main__":
-    options, args = parse_options()
+    
+    choices = {'filename': TEResolver, 'content': TEContentResolver}
+    default = 'filename'
+    
+    
+    options, args = parse_options(choices.keys(), default)
     file = args[0]
     print "Getting names for image %s..." % file
-    names = get_names(file, options.max_pages, options.min_score)
+    names = get_names(file, options.max_pages, options.min_score, resolver=choices[options.mode]())
     print "done:\n"
     
     for i, (name, score) in enumerate(names, start=1):
@@ -79,7 +87,7 @@ if __name__ == "__main__":
     print ""
     
     if options.fetch:
-        terms = [n for n,_ in names[:options.fetch]]
+        terms = [n for n,_ in names[:min(len(names), options.fetch)]]
         print "Calculate weight for %s:" % ', '.join(terms)
         
         for name in terms:

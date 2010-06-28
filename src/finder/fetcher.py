@@ -8,7 +8,7 @@ import urllib2
 from lxml import etree
 
 class WAFetcher(object):
-    """ Tris to get the weight for an object from 
+    """ Tries to get the weight for an object from 
     
             http://www.wolframalpha.com
             
@@ -41,3 +41,7 @@ class WAFetcher(object):
             weight = ''
 
         return weight
+    
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
